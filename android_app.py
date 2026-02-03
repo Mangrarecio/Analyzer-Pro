@@ -82,7 +82,8 @@ st.markdown("""
 
 # Título principal
 st.title("🤖 Android App Analyzer Pro")
-st.markdown("**Analizador completo de aplicaciones Android: JavaScript, DEX, SMALI, APK**")
+st.markdown("**Analizador de código Android: JavaScript, DEX, SMALI, Manifiestos**")
+st.info("**ℹ️ Nota:** Por restricciones de seguridad, no se pueden subir APKs completos. Descompila primero con apktool y sube archivos individuales.")
 
 # Sidebar con categorías
 st.sidebar.title("📋 Categorías")
@@ -94,16 +95,17 @@ categoria = st.sidebar.radio(
         "🏠 Conversión Básica",
         "📱 Análisis de JavaScript",
         "🔧 Análisis DEX/SMALI",
-        "📦 Análisis de APK Completo",
-        "🔐 Seguridad y Permisos",
-        "📊 Recursos y Manifiestos",
-        "🔍 Dependencias y Librerías",
-        "⚖️ Comparación de Versiones"
+        "📊 Análisis de Manifiestos",
+        "🔐 Seguridad de Código",
+        "🔍 Dependencias JavaScript",
+        "📝 Análisis Gradle/Config",
+        "💡 Guía de Uso"
     ]
 )
 
 st.sidebar.markdown("---")
-st.sidebar.info("**💡 Tip:** Sube tus archivos .js, .dex, .smali o .apk para análisis completo.")
+st.sidebar.info("**💡 Tip:** Sube archivos .js, .dex, .smali o AndroidManifest.xml")
+st.sidebar.warning("**⚠️ Nota:** Por seguridad, no se pueden subir archivos APK completos. Extrae los archivos individualmente.")
 
 # ==================== CONVERSIÓN BÁSICA ====================
 if categoria == "🏠 Conversión Básica":
@@ -338,145 +340,150 @@ elif categoria == "🔧 Análisis DEX/SMALI":
                 if st.button("**Intentar Conversión**", key="smali_to_java"):
                     st.warning("**Esta conversión es aproximada y puede no ser exacta**")
 
-# ==================== ANÁLISIS DE APK COMPLETO ====================
-elif categoria == "📦 Análisis de APK Completo":
-    st.header("Análisis Completo de APK")
+# ==================== ANÁLISIS DE MANIFIESTOS ====================
+elif categoria == "📊 Análisis de Manifiestos":
+    st.header("Análisis de AndroidManifest.xml")
     
-    st.markdown("""
-    **🎯 Sube un archivo APK para análisis completo:**
-    - Extracción de archivos
-    - Análisis del AndroidManifest.xml
-    - Conversión DEX a SMALI
-    - Extracción de recursos
-    - Análisis de permisos
-    - Detección de librerías nativas
+    st.info("""
+    **💡 Importante:** Por restricciones de seguridad, no se pueden subir archivos APK directamente.
+    
+    **Soluciones alternativas:**
+    1. Usa herramientas externas como `apktool` para descompilar el APK
+    2. Sube el AndroidManifest.xml extraído aquí
+    3. Sube archivos DEX o SMALI individuales
     """)
     
-    apk_file = st.file_uploader(
-        "**Subir archivo APK**",
-        type=['apk'],
-        key="apk_upload"
+    st.markdown("""
+    **📱 Puedes analizar:**
+    - AndroidManifest.xml (formato texto o binario)
+    - Archivos de configuración
+    - Permisos y activities
+    """)
+    
+    manifest_file = st.file_uploader(
+        "**Subir AndroidManifest.xml**",
+        type=['xml', 'txt'],
+        key="manifest_upload"
     )
     
-    if apk_file:
-        st.success(f"**✅ APK cargado: {apk_file.name}**")
+    if manifest_file:
+        st.success(f"**✅ Archivo cargado: {manifest_file.name}**")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            analyze_full = st.checkbox("**Análisis completo (lento)**", value=False)
-        with col2:
-            extract_all = st.checkbox("**Extraer todos los archivos**", value=False)
+        tab1, tab2, tab3 = st.tabs([
+            "**📄 Contenido**",
+            "**🔐 Permisos**",
+            "**📱 Componentes**"
+        ])
         
-        if st.button("**🚀 Analizar APK**", key="analyze_apk"):
-            with st.spinner("**Analizando APK... Esto puede tardar varios minutos**"):
-                
-                # Crear tabs para diferentes análisis
-                tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                    "**📋 Información General**",
-                    "**🔐 Permisos**",
-                    "**📱 Manifest**",
-                    "**📦 Recursos**",
-                    "**📊 Reporte Completo**"
-                ])
-                
-                with tab1:
-                    st.subheader("**Información General del APK**")
-                    apk_info = decompile_apk(apk_file, extract_all)
+        with tab1:
+            st.subheader("**Contenido del Manifest**")
+            try:
+                content = manifest_file.read().decode('utf-8')
+                st.code(content, language="xml")
+                manifest_file.seek(0)
+            except:
+                st.error("**Error al leer el archivo. Asegúrate que sea un archivo XML válido.**")
+        
+        with tab2:
+            st.subheader("**Análisis de Permisos**")
+            if st.button("**Extraer Permisos**", key="extract_perms"):
+                try:
+                    content = manifest_file.read().decode('utf-8')
                     
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("**Tamaño**", f"{apk_info.get('size', 0) / 1024 / 1024:.2f} MB")
-                    with col2:
-                        st.metric("**Archivos DEX**", apk_info.get('dex_count', 0))
-                    with col3:
-                        st.metric("**Recursos**", apk_info.get('resource_count', 0))
-                    
-                    st.json(apk_info)
-                
-                with tab2:
-                    st.subheader("**Permisos Solicitados**")
-                    permissions = detect_permissions(apk_file)
+                    # Buscar permisos
+                    perm_pattern = r'<uses-permission\s+android:name="([^"]+)"'
+                    permissions = re.findall(perm_pattern, content)
                     
                     if permissions:
-                        dangerous = [p for p in permissions if p.get('level') == 'dangerous']
-                        normal = [p for p in permissions if p.get('level') == 'normal']
+                        st.write(f"**Total de permisos encontrados:** {len(permissions)}")
                         
-                        st.warning(f"**⚠️ {len(dangerous)} permisos peligrosos detectados**")
+                        dangerous_keywords = ['CAMERA', 'LOCATION', 'CONTACTS', 'SMS', 'PHONE', 'STORAGE', 'MICROPHONE']
+                        
+                        dangerous = [p for p in permissions if any(kw in p.upper() for kw in dangerous_keywords)]
+                        normal = [p for p in permissions if p not in dangerous]
                         
                         col1, col2 = st.columns(2)
                         with col1:
                             st.markdown("**🔴 Permisos Peligrosos:**")
                             for perm in dangerous:
-                                st.code(perm['name'])
+                                st.code(perm)
                         
                         with col2:
                             st.markdown("**🔵 Permisos Normales:**")
                             for perm in normal:
-                                st.code(perm['name'])
-                
-                with tab3:
-                    st.subheader("**AndroidManifest.xml**")
-                    manifest_info = analyze_manifest(apk_file)
+                                st.code(perm)
+                    else:
+                        st.info("**No se encontraron permisos en el manifest**")
                     
-                    st.markdown("**📱 Información de la App:**")
-                    st.write(f"**Package:** `{manifest_info.get('package')}`")
-                    st.write(f"**Version Name:** `{manifest_info.get('version_name')}`")
-                    st.write(f"**Version Code:** `{manifest_info.get('version_code')}`")
-                    st.write(f"**Min SDK:** `{manifest_info.get('min_sdk')}`")
-                    st.write(f"**Target SDK:** `{manifest_info.get('target_sdk')}`")
+                    manifest_file.seek(0)
+                except Exception as e:
+                    st.error(f"**Error:** {str(e)}")
+        
+        with tab3:
+            st.subheader("**Componentes de la App**")
+            if st.button("**Extraer Componentes**", key="extract_components"):
+                try:
+                    content = manifest_file.read().decode('utf-8')
                     
-                    with st.expander("**Ver Manifest completo**"):
-                        st.code(manifest_info.get('raw_xml', ''), language="xml")
-                
-                with tab4:
-                    st.subheader("**Recursos Extraídos**")
-                    resources = extract_resources(apk_file)
+                    # Buscar activities
+                    activity_pattern = r'<activity\s+android:name="([^"]+)"'
+                    activities = re.findall(activity_pattern, content)
                     
-                    st.write(f"**Total de recursos:** {len(resources)}")
+                    # Buscar services
+                    service_pattern = r'<service\s+android:name="([^"]+)"'
+                    services = re.findall(service_pattern, content)
                     
-                    resource_types = {}
-                    for res in resources:
-                        res_type = res.split('.')[-1]
-                        resource_types[res_type] = resource_types.get(res_type, 0) + 1
+                    # Buscar receivers
+                    receiver_pattern = r'<receiver\s+android:name="([^"]+)"'
+                    receivers = re.findall(receiver_pattern, content)
                     
-                    for res_type, count in resource_types.items():
-                        st.write(f"**{res_type}:** {count} archivos")
-                
-                with tab5:
-                    st.subheader("**Reporte Completo**")
-                    if st.button("**Generar Reporte PDF**", key="gen_apk_report"):
-                        report = generate_apk_report(apk_file, analyze_full)
-                        
-                        st.download_button(
-                            "**⬇️ Descargar Reporte**",
-                            report,
-                            f"{apk_file.name}_report.pdf",
-                            "application/pdf"
-                        )
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric("**Activities**", len(activities))
+                        for act in activities:
+                            st.code(act, language="java")
+                    
+                    with col2:
+                        st.metric("**Services**", len(services))
+                        for srv in services:
+                            st.code(srv, language="java")
+                    
+                    with col3:
+                        st.metric("**Receivers**", len(receivers))
+                        for rcv in receivers:
+                            st.code(rcv, language="java")
+                    
+                    manifest_file.seek(0)
+                except Exception as e:
+                    st.error(f"**Error:** {str(e)}")
 
-# ==================== SEGURIDAD Y PERMISOS ====================
-elif categoria == "🔐 Seguridad y Permisos":
-    st.header("Análisis de Seguridad")
+# ==================== SEGURIDAD DE CÓDIGO ====================
+elif categoria == "🔐 Seguridad de Código":
+    st.header("Análisis de Seguridad de Código")
     
     st.markdown("""
-    **🔒 Análisis de seguridad para aplicaciones Android:**
-    - Detección de permisos peligrosos
-    - Análisis de código malicioso
-    - Verificación de certificados
-    - Detección de ofuscación
-    - Análisis de URLs sospechosas
+    **🔒 Análisis de seguridad para código JavaScript/React Native:**
+    - Detección de eval() e innerHTML
+    - API keys hardcoded
+    - Uso de HTTP en lugar de HTTPS
+    - Almacenamiento inseguro de datos
+    - Problemas comunes de seguridad
     """)
     
-    upload_type = st.radio("**Tipo de análisis:**", ["Archivo APK", "Código fuente (JS/Java)"])
+    source_files = st.file_uploader(
+        "**Subir archivos de código JavaScript**",
+        type=['js', 'jsx'],
+        accept_multiple_files=True,
+        key="security_source"
+    )
     
-    if upload_type == "Archivo APK":
-        apk_file = st.file_uploader("**Subir APK**", type=['apk'], key="security_apk")
-        
-        if apk_file:
-            if st.button("**🔍 Escanear Seguridad**", key="scan_apk_security"):
-                with st.spinner("**Escaneando...**"):
-                    issues = detect_security_issues_android(apk_file, 'apk')
-                    
+    if source_files:
+        if st.button("**🔍 Escanear Seguridad**", key="scan_source_security"):
+            with st.spinner("**Escaneando código...**"):
+                issues = detect_security_issues_android(source_files, 'javascript')
+                
+                if issues:
                     high = [i for i in issues if i['severity'] == 'HIGH']
                     medium = [i for i in issues if i['severity'] == 'MEDIUM']
                     low = [i for i in issues if i['severity'] == 'LOW']
@@ -490,76 +497,156 @@ elif categoria == "🔐 Seguridad y Permisos":
                         st.metric("**🔵 Bajo**", len(low))
                     
                     st.markdown("### **Problemas Detectados:**")
-                    for issue in high:
-                        st.error(f"**{issue['type']}:** {issue['description']}")
                     
-                    for issue in medium:
-                        st.warning(f"**{issue['type']}:** {issue['description']}")
-    
-    else:
-        source_files = st.file_uploader(
-            "**Subir archivos de código**",
-            type=['js', 'java'],
-            accept_multiple_files=True,
-            key="security_source"
-        )
-        
-        if source_files:
-            if st.button("**🔍 Analizar Código**", key="scan_source_security"):
-                issues = detect_security_issues_android(source_files, 'javascript')
-                
-                for issue in issues:
-                    if issue['severity'] == 'HIGH':
-                        st.error(f"**Línea {issue.get('line', '?')}:** {issue['description']}")
+                    if high:
+                        st.markdown("#### **🔴 Prioridad Alta:**")
+                        for issue in high:
+                            st.error(f"**{issue['file']}** (línea {issue.get('line', '?')}): {issue['description']}")
+                    
+                    if medium:
+                        st.markdown("#### **🟡 Prioridad Media:**")
+                        for issue in medium:
+                            st.warning(f"**{issue['file']}** (línea {issue.get('line', '?')}): {issue['description']}")
+                    
+                    if low:
+                        with st.expander("**🔵 Prioridad Baja**"):
+                            for issue in low:
+                                st.info(f"**{issue['file']}** (línea {issue.get('line', '?')}): {issue['description']}")
+                else:
+                    st.success("**✅ No se detectaron problemas de seguridad**")
+                    st.balloons()
 
-# ==================== RECURSOS Y MANIFIESTOS ====================
-elif categoria == "📊 Recursos y Manifiestos":
-    st.header("Análisis de Recursos y Configuración")
+# ==================== DEPENDENCIAS JAVASCRIPT ====================
+elif categoria == "🔍 Dependencias JavaScript":
+    st.header("Análisis de Dependencias")
     
-    tab1, tab2, tab3 = st.tabs([
-        "**📄 Manifest**",
-        "**🎨 Recursos**",
-        "**🔧 Gradle**"
+    st.markdown("""
+    **📦 Analiza las dependencias de tu proyecto JavaScript/React Native:**
+    - Imports ES6 (`import ... from`)
+    - Requires CommonJS (`require()`)
+    - Dependencias externas vs internas
+    - Análisis de package.json
+    """)
+    
+    tab1, tab2 = st.tabs([
+        "**📄 Archivos JavaScript**",
+        "**📦 package.json**"
     ])
     
     with tab1:
-        st.subheader("**AndroidManifest.xml**")
-        apk_file = st.file_uploader("**Subir APK**", type=['apk'], key="manifest_apk")
+        st.subheader("**Analizar Archivos JavaScript**")
+        js_files = st.file_uploader(
+            "**Subir archivos .js o .jsx**",
+            type=['js', 'jsx'],
+            accept_multiple_files=True,
+            key="deps_js"
+        )
         
-        if apk_file:
-            if st.button("**Analizar Manifest**", key="analyze_manifest_btn"):
-                manifest = analyze_manifest(apk_file)
+        if js_files:
+            if st.button("**Analizar Dependencias**", key="analyze_js_deps"):
+                deps = analyze_dependencies(js_files)
                 
-                st.markdown("### **Información de la Aplicación:**")
-                st.write(f"**📦 Package:** `{manifest.get('package')}`")
-                st.write(f"**🏷️ Nombre:** `{manifest.get('app_name')}`")
-                st.write(f"**📱 Version:** `{manifest.get('version_name')} ({manifest.get('version_code')})`")
+                st.markdown("### **Dependencias Detectadas:**")
                 
-                st.markdown("### **Activities:**")
-                for activity in manifest.get('activities', []):
-                    st.code(activity)
+                all_imports = []
+                for file, imports in deps.items():
+                    all_imports.extend(imports)
                 
-                st.markdown("### **Services:**")
-                for service in manifest.get('services', []):
-                    st.code(service)
+                # Separar dependencias externas vs relativas
+                external = [imp for imp in all_imports if not imp.startswith('.')]
+                relative = [imp for imp in all_imports if imp.startswith('.')]
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**📦 Dependencias Externas:**")
+                    st.metric("Total", len(set(external)))
+                    for imp in sorted(set(external)):
+                        st.code(imp)
+                
+                with col2:
+                    st.markdown("**📁 Imports Relativos:**")
+                    st.metric("Total", len(set(relative)))
+                    for imp in sorted(set(relative)):
+                        st.code(imp)
+                
+                # Detalle por archivo
+                with st.expander("**Ver detalle por archivo**"):
+                    for file, imports in deps.items():
+                        st.markdown(f"**📄 {file}**")
+                        for imp in imports:
+                            st.write(f"  └─ `{imp}`")
     
     with tab2:
-        st.subheader("**Strings.xml y Recursos**")
-        apk_file = st.file_uploader("**Subir APK**", type=['apk'], key="resources_apk")
+        st.subheader("**Analizar package.json**")
+        package_file = st.file_uploader(
+            "**Subir package.json**",
+            type=['json'],
+            key="package_json"
+        )
         
-        if apk_file:
-            if st.button("**Extraer Strings**", key="extract_strings"):
-                strings = extract_strings_xml(apk_file)
+        if package_file:
+            try:
+                import json
+                package_data = json.load(package_file)
                 
-                st.markdown(f"**Total de strings:** {len(strings)}")
+                st.markdown("### **Información del Proyecto:**")
                 
-                for key, value in list(strings.items())[:50]:
-                    st.write(f"**{key}:** {value}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Nombre:** `{package_data.get('name', 'N/A')}`")
+                    st.write(f"**Versión:** `{package_data.get('version', 'N/A')}`")
+                    st.write(f"**Descripción:** {package_data.get('description', 'N/A')}")
+                
+                with col2:
+                    deps_count = len(package_data.get('dependencies', {}))
+                    devdeps_count = len(package_data.get('devDependencies', {}))
+                    st.metric("**Dependencies**", deps_count)
+                    st.metric("**DevDependencies**", devdeps_count)
+                
+                # Dependencies
+                if package_data.get('dependencies'):
+                    with st.expander("**📦 Dependencies**"):
+                        for dep, version in package_data['dependencies'].items():
+                            st.code(f"{dep}: {version}")
+                
+                # DevDependencies
+                if package_data.get('devDependencies'):
+                    with st.expander("**🔧 DevDependencies**"):
+                        for dep, version in package_data['devDependencies'].items():
+                            st.code(f"{dep}: {version}")
+                
+                # Scripts
+                if package_data.get('scripts'):
+                    with st.expander("**⚙️ Scripts**"):
+                        for script, command in package_data['scripts'].items():
+                            st.write(f"**{script}:**")
+                            st.code(command, language="bash")
+                
+            except Exception as e:
+                st.error(f"**Error al leer package.json:** {str(e)}")
+
+# ==================== ANÁLISIS GRADLE/CONFIG ====================
+elif categoria == "📝 Análisis Gradle/Config":
+    st.header("Análisis de Archivos de Configuración")
     
-    with tab3:
-        st.subheader("**Archivos Gradle**")
+    st.markdown("""
+    **⚙️ Analiza archivos de configuración de tu proyecto Android:**
+    - build.gradle (app y project)
+    - settings.gradle
+    - Configuración de SDK
+    - Dependencias Android
+    """)
+    
+    tab1, tab2 = st.tabs([
+        "**📝 Archivos Gradle**",
+        "**⚙️ Configuraciones**"
+    ])
+    
+    with tab1:
+        st.subheader("**Analizar build.gradle**")
         gradle_files = st.file_uploader(
-            "**Subir build.gradle**",
+            "**Subir archivos .gradle**",
             type=['gradle'],
             accept_multiple_files=True,
             key="gradle_upload"
@@ -569,73 +656,246 @@ elif categoria == "📊 Recursos y Manifiestos":
             for gradle_file in gradle_files:
                 with st.expander(f"📄 {gradle_file.name}"):
                     gradle_info = analyze_gradle_files(gradle_file)
-                    st.json(gradle_info)
-
-# ==================== DEPENDENCIAS Y LIBRERÍAS ====================
-elif categoria == "🔍 Dependencias y Librerías":
-    st.header("Análisis de Dependencias")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("**🔧 Configuración SDK:**")
+                        st.write(f"**Min SDK:** `{gradle_info.get('min_sdk', 'N/A')}`")
+                        st.write(f"**Target SDK:** `{gradle_info.get('target_sdk', 'N/A')}`")
+                        st.write(f"**Version Name:** `{gradle_info.get('version_name', 'N/A')}`")
+                        st.write(f"**Version Code:** `{gradle_info.get('version_code', 'N/A')}`")
+                    
+                    with col2:
+                        st.markdown("**📦 Plugins:**")
+                        for plugin in gradle_info.get('plugins', []):
+                            st.code(plugin)
+                    
+                    st.markdown("**📚 Dependencias:**")
+                    deps = gradle_info.get('dependencies', [])
+                    if deps:
+                        st.write(f"**Total:** {len(deps)}")
+                        for dep in deps:
+                            st.code(dep)
+                    else:
+                        st.info("**No se encontraron dependencias**")
     
-    apk_file = st.file_uploader("**Subir APK**", type=['apk'], key="deps_apk")
-    
-    if apk_file:
-        tab1, tab2, tab3 = st.tabs([
-            "**📦 Librerías Nativas**",
-            "**🔗 Dependencias JS**",
-            "**📚 Librerías Android**"
-        ])
+    with tab2:
+        st.subheader("**Archivos de Configuración Personalizados**")
         
-        with tab1:
-            st.subheader("**Librerías Nativas (.so)**")
-            if st.button("**Detectar Librerías**", key="detect_native"):
-                native_libs = detect_native_libs(apk_file)
+        config_file = st.file_uploader(
+            "**Subir archivo de configuración (JSON, XML, properties)**",
+            type=['json', 'xml', 'properties', 'txt'],
+            key="config_upload"
+        )
+        
+        if config_file:
+            st.success(f"**✅ Archivo cargado: {config_file.name}**")
+            
+            try:
+                content = config_file.read().decode('utf-8')
+                st.code(content, language="text")
                 
-                if native_libs:
-                    for arch, libs in native_libs.items():
-                        with st.expander(f"**{arch}** ({len(libs)} librerías)"):
-                            for lib in libs:
-                                st.code(lib)
+                # Buscar configuraciones sensibles
+                st.markdown("### **⚠️ Verificación de Seguridad:**")
+                
+                sensitive_patterns = {
+                    'API Key': r'api[_-]?key',
+                    'Password': r'password',
+                    'Secret': r'secret',
+                    'Token': r'token',
+                    'Private Key': r'private[_-]?key'
+                }
+                
+                found_sensitive = []
+                for name, pattern in sensitive_patterns.items():
+                    if re.search(pattern, content, re.IGNORECASE):
+                        found_sensitive.append(name)
+                
+                if found_sensitive:
+                    st.warning(f"**⚠️ Se detectaron posibles configuraciones sensibles:**")
+                    for item in found_sensitive:
+                        st.write(f"- {item}")
+                    st.info("**💡 Tip:** No incluyas API keys o secrets directamente en los archivos de configuración.")
                 else:
-                    st.info("**No se encontraron librerías nativas**")
-        
-        with tab2:
-            st.subheader("**Dependencias JavaScript**")
-            st.info("**Analiza package.json o archivos JS para detectar dependencias**")
-        
-        with tab3:
-            st.subheader("**Librerías Android Detectadas**")
-            st.info("**Basado en análisis de DEX y Manifest**")
+                    st.success("**✅ No se detectaron configuraciones sensibles expuestas**")
+                
+            except Exception as e:
+                st.error(f"**Error al leer el archivo:** {str(e)}")
 
-# ==================== COMPARACIÓN DE VERSIONES ====================
-elif categoria == "⚖️ Comparación de Versiones":
-    st.header("Comparar Versiones de APK")
+# ==================== GUÍA DE USO ====================
+elif categoria == "💡 Guía de Uso":
+    st.header("Guía de Uso de la Aplicación")
     
-    col1, col2 = st.columns(2)
+    st.markdown("""
+    # 🤖 Bienvenido a Android App Analyzer Pro
     
-    with col1:
-        st.subheader("**Versión Original**")
-        apk1 = st.file_uploader("**APK v1**", type=['apk'], key="compare_apk1")
+    Esta aplicación te permite analizar aplicaciones Android sin necesidad de herramientas complejas.
     
-    with col2:
-        st.subheader("**Versión Nueva**")
-        apk2 = st.file_uploader("**APK v2**", type=['apk'], key="compare_apk2")
+    ---
     
-    if apk1 and apk2:
-        if st.button("**⚖️ Comparar Versiones**", key="compare_versions"):
-            with st.spinner("**Comparando APKs...**"):
-                diff = compare_apk_versions(apk1, apk2)
-                
-                st.markdown("### **Diferencias Detectadas:**")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("**Cambio de Tamaño**", f"{diff.get('size_diff', 0):.2f} MB")
-                with col2:
-                    st.metric("**Nuevos Permisos**", diff.get('new_permissions', 0))
-                with col3:
-                    st.metric("**Archivos Modificados**", diff.get('modified_files', 0))
-                
-                st.markdown("### **Detalles:**")
-                st.json(diff)
+    ## 📱 ¿Qué puedes hacer?
+    
+    ### 🏠 **Conversión Básica**
+    Convierte archivos JavaScript, DEX o SMALI a texto legible:
+    - ✅ Archivos .js y .jsx (React Native)
+    - ✅ Archivos .dex (bytecode Android)
+    - ✅ Archivos .smali (ensamblador)
+    
+    ### 📱 **Análisis de JavaScript**
+    Analiza código JavaScript/React Native:
+    - 📊 Estadísticas (líneas, funciones, componentes)
+    - 🔍 Detección de componentes React
+    - 📦 Análisis de dependencias
+    - ⚠️ Problemas de seguridad
+    
+    ### 🔧 **Análisis DEX/SMALI**
+    Examina bytecode Android:
+    - 📦 Información de archivos DEX
+    - 📖 Lectura de archivos SMALI
+    - 📊 Contador de clases y métodos
+    
+    ### 📊 **Análisis de Manifiestos**
+    Lee AndroidManifest.xml:
+    - 🔐 Extracción de permisos
+    - 📱 Listado de Activities/Services
+    - ⚙️ Configuración de la app
+    
+    ### 🔐 **Seguridad de Código**
+    Detecta problemas de seguridad:
+    - 🚨 eval() e innerHTML
+    - 🔑 API keys hardcoded
+    - 🌐 Uso de HTTP vs HTTPS
+    - 💾 Almacenamiento inseguro
+    
+    ### 🔍 **Dependencias JavaScript**
+    Analiza dependencias del proyecto:
+    - 📦 Imports y requires
+    - 📄 Análisis de package.json
+    - 🔗 Dependencias externas vs internas
+    
+    ### 📝 **Análisis Gradle/Config**
+    Examina configuración del proyecto:
+    - ⚙️ build.gradle
+    - 🔧 Configuración de SDK
+    - 📚 Dependencias Android
+    
+    ---
+    
+    ## 🚀 Cómo Empezar
+    
+    ### Paso 1: Selecciona una categoría
+    Usa el menú de la izquierda para elegir qué quieres hacer.
+    
+    ### Paso 2: Sube tus archivos
+    Arrastra o selecciona los archivos que quieres analizar.
+    
+    ### Paso 3: Analiza
+    Haz clic en el botón correspondiente para iniciar el análisis.
+    
+    ### Paso 4: Descarga resultados
+    Guarda los resultados en formato texto, JSON o PDF.
+    
+    ---
+    
+    ## ⚠️ Limitación Importante
+    
+    **No se pueden subir archivos APK completos** debido a restricciones de seguridad de Streamlit Cloud.
+    
+    ### 📝 Soluciones alternativas:
+    
+    1. **Descompila el APK primero:**
+       ```bash
+       apktool d app.apk -o output/
+       ```
+       Luego sube los archivos individuales (AndroidManifest.xml, .dex, .smali)
+    
+    2. **Extrae archivos específicos:**
+       - Usa WinRAR/7-Zip para abrir el APK (es un ZIP)
+       - Extrae AndroidManifest.xml, classes.dex, etc.
+       - Sube esos archivos aquí
+    
+    3. **Usa herramientas externas:**
+       - jadx: Para ver código Java
+       - dex2jar: Para convertir DEX a JAR
+       - baksmali: Para convertir DEX a SMALI
+    
+    ---
+    
+    ## 💡 Casos de Uso
+    
+    ### Para Desarrolladores
+    - ✅ Analizar tu código antes de publicar
+    - ✅ Verificar dependencias usadas
+    - ✅ Detectar problemas de seguridad
+    - ✅ Revisar configuración de permisos
+    
+    ### Para Seguridad
+    - ✅ Auditar código de terceros
+    - ✅ Detectar código malicioso
+    - ✅ Analizar permisos solicitados
+    - ✅ Verificar URLs y endpoints
+    
+    ### Para Aprendizaje
+    - ✅ Estudiar estructura de apps
+    - ✅ Entender bytecode Android
+    - ✅ Aprender React Native
+    - ✅ Análisis de código
+    
+    ---
+    
+    ## 🛠️ Herramientas Complementarias
+    
+    Para análisis más avanzado:
+    - **apktool**: Descompilación de APK
+    - **jadx**: DEX a código Java
+    - **baksmali**: DEX a SMALI
+    - **androguard**: Análisis Python
+    - **dex2jar**: DEX a JAR
+    
+    ---
+    
+    ## 📧 ¿Necesitas Ayuda?
+    
+    Si tienes problemas o sugerencias:
+    - Revisa esta guía
+    - Consulta el README en GitHub
+    - Abre un Issue en el repositorio
+    
+    ---
+    
+    ## ⚖️ Uso Responsable
+    
+    Esta herramienta es para:
+    - ✅ Analizar tus propias apps
+    - ✅ Investigación de seguridad ética
+    - ✅ Propósitos educativos
+    - ✅ Auditorías autorizadas
+    
+    **NO usar para actividades ilegales o no éticas.**
+    
+    ---
+    
+    ¡Gracias por usar Android App Analyzer Pro! 🚀
+    """)
+    
+    # Tips útiles
+    with st.expander("**💡 Tips y Trucos**"):
+        st.markdown("""
+        - **Tip 1**: Para archivos grandes, el análisis puede tardar. Ten paciencia.
+        - **Tip 2**: Puedes analizar múltiples archivos a la vez.
+        - **Tip 3**: Los problemas de seguridad HIGH requieren atención inmediata.
+        - **Tip 4**: Usa el análisis de dependencias para detectar librerías obsoletas.
+        - **Tip 5**: Exporta los resultados antes de cerrar la página.
+        """)
+    
+    # Atajos de teclado
+    with st.expander("**⌨️ Atajos de Teclado**"):
+        st.markdown("""
+        - **Ctrl + R**: Recargar la aplicación
+        - **Ctrl + S**: (en editor) Guardar archivo
+        - **Esc**: Cerrar menú lateral
+        """)
 
 # Footer
 st.markdown("---")
